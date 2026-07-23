@@ -269,3 +269,6 @@ InfraCoder/
 ├── pyproject.toml           # 包配置
 ├── README.md                # 本文档
 └── .env                     # 环境变量配置
+致谢：
+InfraCoder 的 Agent 核心设计与部分基础工具实现受 CoreCoder 项目启发，为本项目的学习与开发提供了重要参考。在此基础上，InfraCoder 进一步结合私有化大模型部署场景，扩展了本地 vLLM 接入、GPU/vLLM 基础设施诊断、多模式工具权限控制及 Gradio Web UI 等功能。
+感谢所有开源项目作者与社区贡献者。作者联系方式（vx同步）：18300396393
