@@ -38,7 +38,7 @@ InfraCoder 的核心是一个 **while 循环**，流程如下：
 while True:
     response = llm.chat(messages, tools=tool_defs)    # 调模型
     messages.append(response)                           # 追加回复
-    if response.tool_calls:                             # 有工具调用？
+    if response.tool_calls:                             # 工具调用
         results = execute_tools(response.tool_calls)    # 并行执行
         messages.extend(results)                        # 结果回填
     else:
@@ -75,7 +75,7 @@ while True:
 | `gpu_status` | NVIDIA GPU 状态检测（显存、利用率、温度、功耗、进程、拓扑） | 自定义工具 |
 | `vllm_status` | vLLM 服务健康度检查（模型列表、API 响应延迟、端点可用性） | 自定义工具 |
 
-![系统架构](/home/ubuntu/XYP/InfraCoder/assets/demo.png)
+![系统架构](/assets/run_demo.png)
 *Agent 系统架构与工具系统*
 
 ### 模式系统（Mode System）
@@ -120,7 +120,7 @@ while True:
 
 该工具会自动检测 `OPENAI_BASE_URL` 和 `INFRACODER_BASE_URL` 环境变量中配置的 vLLM 地址。
 
-![工具演示](/home/ubuntu/XYP/InfraCoder/assets/demo_en.png)
+![工具演示](assets/demo_en.png)
 *GPU 状态与 vLLM 健康检查工具演示*
 
 ---
@@ -155,7 +155,7 @@ source venv/bin/activate
 ./start_webui.sh status    # 查看状态
 ```
 
-![运行界面](/home/ubuntu/XYP/InfraCoder/assets/run_demo.png)
+![运行界面](assets/demo.png)
 *Web UI 运行界面*
 
 ---
