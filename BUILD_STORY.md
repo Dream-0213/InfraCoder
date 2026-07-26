@@ -283,6 +283,49 @@ CLI 对开发者和习惯终端的人好用，但部门里的大部分同事想�
 
 ---
 
+
+## 13. workflows/ — 工作流模板系统
+
+基础功能搭好之后，我开始想怎么优化高频任务的体验。
+
+**要解决什么问题**：每次让 LLM 做 GPU 诊断，它都要从头想先查显存再查温度，步骤顺序不稳定，输出格式不一致。需要把高频任务的执行流程固化下来。
+
+**怎么实现的**：一个 `WorkflowTemplate` 数据类，包含 name、description、parameters（JSON Schema）、instruction（带 `{placeholder}` 的任务指令）。一个 `WorkflowTool` 继承 `Tool` 基类，像普通工具一样注册。当 LLM 调用 `workflow(template="gpu_check")` 时，WorkflowTool 创建一个子 Agent 执行模板中的步骤。
+
+模板定义在 `defaults.py` 中，每个模板就是一个 dict，包含模板名、描述、参数 schema、带占位符的指令文本。内置 4 个模板：gpu_check（GPU 诊断）、code_review（代码审查）、doc_summarize（文档摘要）、investigate_error（错误排查）。
+
+**和 agent 工具的区别**：`agent` 是自由探索，LLM 自己决定步骤和输出。`workflow` 是按固定模板执行，步骤和输出格式是预设的。日常高频任务用 workflow，偶发任务用 agent。
+
+
+## 14. knowledge/ — RAG 知识库
+
+让 Agent 能搜索公司内部文档。
+
+**要解决什么问题**：LLM 不知道公司内部文档——API 怎么调、配置写在哪、项目规范是什么。用 grep 搜也可以，但需要精确的关键词。我需要一个语义搜索工具，用户说 QPS 上限怎么配，就能匹配到写着 qps_limit 的文档。
+
+**怎么实现的**：`KnowledgeBase` 类管理文档索引。文档按段落切块（每块 100-2000 字符），每块提取关键词后存为 JSON 索引。搜索时先用关键词匹配打分排序，如果 LLM 后端支持 embedding API，会自动升级到语义搜索。
+
+CLI 命令管理知识库：`infracoder kb add docs/` 索引目录，`infracoder kb list` 查看已索引，`infracoder kb rebuild` 重建。数据存在 `.infracoder/knowledge/_index.json`，重启不丢失。
+
+**关键设计**：`search_knowledge` 是普通工具，和其他工具一样由 LLM 按需调用。LLM 发现自己的训练数据不足以回答用户问题时，会自动去查知识库。不触发查询时没有额外开销。
+
+
+## 15. user_config.py — 用户个性化配置
+
+多人共用服务器时，每个人需要的模型、输出风格、工具权限不一样。
+
+**要解决什么问题**：张伟是后端开发需要全工具，王芳是测试只需要读文件，李强是运维偏要用 bullet 格式——这些配置差异不应该靠改代码实现。
+
+**怎么实现的**：`UserConfig` 类从 `.infracoder/users/<用户名>.yaml` 读取配置，支持 `preferred_model`、`output_style`、`disabled_tools`、`preferred_language` 四个字段。`init_user_config()` 在启动时自动加载，通过 `INFRACODER_USER` 环境变量切换用户。
+
+三样东西各自在不同环节生效：
+- `preferred_model` → API 参数，不碰提示词
+- `disabled_tools` → 启动时裁剪 Agent 的工具列表
+- `output_style` → `system_prompt(tools, style=...)` 追加到提示词尾部
+
+模式切换和用户配置互不干扰——张伟可以在 coding 模式下用 detailed 风格写代码，也可以在 infra 模式下用 detailed 风格诊断 GPU。
+
+
 ## 总结：搭建顺序
 
 如果你打算从头复现这个项目，推荐的搭建顺序是：
