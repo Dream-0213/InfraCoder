@@ -7,7 +7,7 @@ from infracoder.tools import ALL_TOOLS, get_tool
 
 
 def test_tool_count():
-    assert len(ALL_TOOLS) == 10
+    assert len(ALL_TOOLS) == 11
 
 
 def test_all_tools_have_valid_schema():

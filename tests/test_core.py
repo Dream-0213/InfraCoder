@@ -16,7 +16,7 @@ def test_public_api_exports():
     assert Agent is not None
     assert LLM is not None
     assert Config is not None
-    assert len(ALL_TOOLS) == 10
+    assert len(ALL_TOOLS) == 11
 
 
 def test_config_from_env(monkeypatch):
