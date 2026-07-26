@@ -1,0 +1,8 @@
+# 王芳 - 测试工程师
+preferred_model: gpt-4o-mini
+output_style: concise          # 测试报告要精炼
+preferred_language: chinese
+disabled_tools:
+  - bash                       # 测试人员不需要执行命令
+  - write_file                 # 也不需要改代码
+  - edit_file

@@ -1,0 +1,5 @@
+# 张伟 - 后端开发工程师
+preferred_model: deepseek-v4-flash
+output_style: detailed        # 喜欢详细的技术说明
+preferred_language: chinese
+disabled_tools: []             # 开发需要全部工具

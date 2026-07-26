@@ -1,0 +1,8 @@
+# 赵敏 - 技术文档工程师
+output_style: default
+preferred_language: chinese
+disabled_tools:
+  - bash                       # 只改文档，不碰代码
+  - gpu_status
+  - vllm_status
+  - workflow

@@ -1,0 +1,8 @@
+# 李强 - 运维工程师
+output_style: bullet           # 运维检查清单用要点格式
+preferred_language: chinese
+disabled_tools:
+  - bash                       # 不直接执行命令，用 gpu_status/vllm_status 诊断
+  - write_file
+  - edit_file
+  - workflow

@@ -1,0 +1,9 @@
+# xuyipeng 的 InfraCoder 配置
+# 去掉可选字段前面的 # 来启用
+
+# preferred_model: deepseek-chat
+# output_style: concise       # default, concise, detailed, bullet
+# preferred_language: chinese  # chinese, english
+# disabled_tools:
+#   - bash
+#   - workflow

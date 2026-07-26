@@ -1,0 +1,8 @@
+# 刘洋 - 实习生
+preferred_model: deepseek-v4-flash
+output_style: detailed         # 实习生需要更详细的解释
+preferred_language: chinese
+disabled_tools:
+  - bash                       # 限制执行权限
+  - agent                      # 不允许创建子 Agent
+  - workflow
