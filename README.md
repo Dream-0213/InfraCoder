@@ -23,8 +23,11 @@ InfraCoder 是一个面向局域网私有化部署场景的 AI Agent。它打通
 - **代码修改**：读写文件、代码搜索替换、Bash 执行、子 Agent 调度
 - **文档处理**：文本文件的读取、编辑、搜索
 - **AI Infra 诊断**：GPU 状态实时检测、vLLM 服务健康检查
+- **知识库 RAG**：内部文档索引和语义搜索
+- **工作流模板**：高频任务固化，一键执行
 - **多模式工具权限**：按任务类型自动裁剪工具集
 - **Web UI 多人访问**：基于 Gradio，每个会话独立隔离
+- **用户个性化**：每个人有独立的模型偏好、输出风格、工具权限
 
 
 
@@ -96,6 +99,8 @@ return "(reached maximum tool-call rounds)"
 | `grep` | 正则内容搜索，自动跳过 .git 等目录 | 参考优化 |
 | `glob` | 文件名模式匹配，按修改时间排序 | 参考优化 |
 | `agent` | 子 Agent 调度，隔离上下文执行子任务 | 参考优化 |
+| `search_knowledge` | 知识库语义搜索，支持关键词和 embedding 双模式 | 自研 |
+| `workflow` | 预置工作流模板：GPU 诊断、代码审查、文档摘要、错误排查 | 自研 |
 | `gpu_status` | GPU 状态检测（显存、利用率、温度、功耗、进程、拓扑） | 自研 |
 | `vllm_status` | vLLM 服务健康度检查（模型列表、API 响应延迟、端点可用性） | 自研 |
 
@@ -108,13 +113,41 @@ return "(reached maximum tool-call rounds)"
 
 | 模式 | 适用场景 | 可用工具 |
 |------|----------|----------|
-| `full` | 所有功能 | 全部工具 |
-| `review` | 代码审查 | read_file, grep, glob（只读） |
+| `review` | 代码审查 | read_file, grep, glob, search_knowledge（只读） |
 | `coding` | 代码修改 | read/write/edit/bash + 搜索 |
+| `full` | 所有功能 | 全部 11 个工具 |
 | `document` | 文档编辑 | read/write/edit + 搜索（无 bash） |
-| `infra` | 基础设施诊断 | read, grep, glob + gpu_status, vllm_status（只读） |
+| `infra` | 基础设施诊断 | read, grep, glob, search_knowledge + gpu_status, vllm_status（只读） |
 
 通过 `/mode ` 命令切换模式后，Agent 可见的工具列表会立即改变，相当于给 LLM 限制了"能做什么事"的边界。
+
+模式切换和用户配置互不干扰——切换模式不改变输出风格，切换用户不改变工具权限（除非用户配置了禁用工具）。
+
+
+
+## 工作流模板系统
+
+高频任务（GPU 诊断、代码审查、文档总结）如果每次让 LLM 自由发挥，输出格式不稳定且浪费 token。工作流模板把任务的执行步骤和输出格式固化下来，LLM 识别到匹配的模板就不再自由探索，直接按模板执行。
+
+内置模板：
+
+| 模板 | 说明 | 参数 |
+|------|------|------|
+| `gpu_check` | 完整 GPU 诊断：显存→温度→进程→拓扑→vLLM | 无 |
+| `code_review` | 代码审查：glob→读文件→ruff→报告 | target |
+| `doc_summarize` | 文档摘要：详细/简洁/要点三种风格 | file, style |
+| `investigate_error` | 错误排查：搜索→读代码→定位根因→修复建议 | error, project |
+
+```bash
+# 调用示例
+# LLM 会自动判断何时使用工作流模板
+> 帮我对这个目录做一次代码审查
+# LLM 调 workflow(template="code_review", params={"target": "src/"})
+> 检查一下 GPU 状态
+# LLM 调 workflow(template="gpu_check")
+```
+
+模板定义在 `infracoder/workflows/defaults.py` 中，每个模板是一个带 `{placeholder}` 的任务指令。通过 `workflow` 工具执行，内部创建子 Agent 按步骤执行。
 
 
 
@@ -145,8 +178,22 @@ return "(reached maximum tool-call rounds)"
 
 该工具会自动检测 `OPENAI_BASE_URL` 和 `INFRACODER_BASE_URL` 环境变量中配置的 vLLM 地址。
 
-![工具演示](assets/demo_en.png)
-*GPU 状态与 vLLM 健康检查工具演示*
+## RAG 知识库
+
+LLM 只知道训练数据里的内容，不知道公司内部的文档、API 规范、项目约定。知识库系统让 Agent 可以通过搜索查询内部文档，基于搜到的内容回答问题。
+
+```bash
+# 索引文档到知识库
+infracoder kb add company-docs/    # 索引整个目录
+infracoder kb add README.md       # 索引单个文件
+
+# 管理
+infracoder kb list                 # 查看已索引的文档
+infracoder kb stats                # 统计信息
+infracoder kb rebuild              # 重建索引
+```
+
+Agent 自动判断是否需要查知识库——普通聊天直接回答，不确定时才调 `search_knowledge`。知识库数据存储在项目 `.infracoder/knowledge/_index.json` 中，重启不丢失。
 
 
 
@@ -205,6 +252,40 @@ infracoder -p "修复 parse_config() 的错误处理"  # 一次性模式
 infracoder --mode coding                # 指定模式启动
 ```
 
+## 用户个性化配置
+
+部门多人共用，每个人需要的模型、输出风格、工具权限各不相同。用户配置系统让每个人有独立的配置文件。
+
+```
+.infracoder/users/
+├── 张伟.yaml     # 后端开发，detailed 风格，全工具
+├── 王芳.yaml     # 测试，concise 风格，禁用 bash
+├── 李强.yaml     # 运维，bullet 风格，纯诊断工具
+├── 赵敏.yaml     # 文档编辑，default 风格，只改文档
+├── 刘洋.yaml     # 实习生，detailed 风格，限制执行权限
+└── xuyipeng.yaml # 默认用户
+```
+
+```bash
+# 启动时指定用户
+INFRACODER_USER=张伟 infracoder
+INFRACODER_USER=王芳 infracoder
+
+# 或写入 .zshrc 长期生效
+export INFRACODER_USER=张伟
+```
+
+配置项：
+
+| 配置 | 作用 | 生效位置 |
+|------|------|---------|
+| `preferred_model` | 模型偏好 | API 参数，不写进提示词 |
+| `output_style` | 输出风格（concise/detailed/bullet） | system prompt 尾部追加 |
+| `disabled_tools` | 禁用特定工具 | 启动时裁剪工具列表 |
+| `preferred_language` | 语言偏好 | system prompt 中设置 |
+
+
+
 ### 内置命令
 
 | 命令 | 功能 |
@@ -216,6 +297,8 @@ infracoder --mode coding                # 指定模式启动
 | `/diff` | 本次会话修改的文件 |
 | `/save` | 保存当前会话 |
 | `/sessions` | 列出所有已保存会话 |
+| `/kb ` | 知识库管理：add, list, remove, rebuild, stats |
+| `/profile` | 查看当前用户个性化配置 |
 
 
 
@@ -278,7 +361,7 @@ Agent 的核心是一个 `for _ in range(self.max_rounds)` 循环，默认上限
 
 ### prompt.py — 系统提示词
 
-`system_prompt(tools)` 函数动态生成系统提示词，包含当前工作目录、操作系统、Python 版本、可用工具列表和 8 条行为规则。每次切换模式时会重新生成，确保 LLM 看到的工具列表与实际可用工具一致。
+`system_prompt(tools, style=None)` 函数动态生成系统提示词，支持个性化输出风格参数，包含当前工作目录、操作系统、Python 版本、可用工具列表和 8 条行为规则。每次切换模式时会重新生成，确保 LLM 看到的工具列表与实际可用工具一致。
 
 ### modes.py — 模式系统
 
@@ -289,7 +372,7 @@ Agent 的核心是一个 `for _ in range(self.max_rounds)` 循环，默认上限
 基于 `prompt_toolkit` 和 `rich` 构建的交互式 REPL。支持：
 
 - 多行输入（Enter 提交，Esc+Enter 换行）
-- 9 个内置命令（`/model`、`/mode`、`/compact`、`/tokens`、`/diff`、`/save`、`/sessions`、`/reset`、`/help`）
+- 11 个内置命令（含 `/kb`、`/profile`）（`/model`、`/mode`、`/compact`、`/tokens`、`/diff`、`/save`、`/sessions`、`/reset`、`/help`）
 - 一次性模式（`-p` 参数）
 - 会话恢复（`-r` 参数）
 - 流式输出和工具调用过程可视化
@@ -316,15 +399,34 @@ Agent 的核心是一个 `for _ in range(self.max_rounds)` 循环，默认上限
 
 **agent.py** — `AgentTool`，子 Agent 调度。创建独立的 Agent 实例（排除自身 agent 工具防止无限递归），独立上下文执行子任务，结果截断到 5000 字符后返回给父 Agent。
 
+### workflows/ 工作流包
+
+`WorkflowTemplate` 数据类包含 name、description、parameters（JSON Schema）、instruction（带 `{placeholder}` 的任务指令）。`WorkflowTool` 继承 `Tool` 基类，注册为普通工具。模板从 `defaults.py` 加载，4 个内置模板涵盖 GPU 诊断、代码审查、文档摘要、错误排查。
+
+### knowledge/ 知识库包
+
+`KnowledgeBase` 类管理文档索引和搜索。文档按段落切块（每块 100-2000 字符），提取关键词后存为 JSON 索引。搜索时优先尝试 embedding 语义搜索（通过 config 中配置的 API），回退到关键词匹配。支持的文件类型：`.md`、`.txt`、`.py`、`.rst`、`.yaml`、`.json`。通过 `infracoder kb` 子命令管理。
+
+### user_config.py — 用户个性化配置
+
+`UserConfig` 类从 `.infracoder/users/<用户名>.yaml` 读取配置，支持 preferred_model、output_style、disabled_tools 等字段。`init_user_config()` 自动检测系统用户名或 `INFRACODER_USER` 环境变量，第一次启动时自动生成配置模板。
+
 **gpu_status.py** — `GPUStatusTool`，自研工具。通过 `nvidia-smi --query-gpu` 获取 GPU 型号、UUID、驱动版本、温度、利用率、显存、功耗，通过 `nvidia-smi --query-compute-apps` 获取 GPU 进程，通过 `nvidia-smi topo -m` 获取拓扑。提供 summary / processes / topology / all 四种详细级别，输出按 Markdown 格式化。
+
+**search_knowledge.py** — `SearchKnowledgeTool`，知识库语义搜索。通过关键词匹配搜索已索引的文档块，返回最相关的内容。支持双模式：内置关键词搜索（无需额外依赖）和 embedding 语义搜索（如 LLM 后端支持）。
+
+**workflow.py** — `WorkflowTool`，预置工作流模板执行。根据模板名和参数创建子 Agent 执行模板中定义的任务步骤。模板支持参数占位符和条件分支。
 
 **vllm_status.py** — `VLLMStatusTool`，自研工具。通过 HTTP GET 检查 `/v1/models` 端点，通过 POST 空请求检查 `/v1/chat/completions` 端点（先获取模型名再构造最小请求），记录响应时间，同时读取环境变量中的 API 配置。所有异常（HTTP 错误、连接失败）都被捕获并格式化为可读的诊断报告。
 
 ### tests/ 测试
 
 - **test_core.py**：token 估算（`estimate_tokens` 和 `_approx_tokens`）、上下文压缩（`_snip_tool_outputs` 和 `maybe_compress`）
-- **test_tools.py**：八个工具的读写搜索编辑功能，包括 UTF-8 编码验证、`edit_file` 的重复匹配和二进制文件拒绝、`grep` 的祖先目录跳过和内部目录跳过
+- **test_tools.py**：11 个工具（含 search_knowledge 和 workflow）的读写搜索编辑功能，包括 UTF-8 编码验证、`edit_file` 的重复匹配和二进制文件拒绝、`grep` 的祖先目录跳过和内部目录跳过
 - **test_session.py**：会话 ID 碰撞、路径穿越、绝对路径剥离、Windows 反斜杠处理、长度上限
+- **test_core.py**：工具计数 9→11、token 估算、上下文压缩（`_snip_tool_outputs` 和 `maybe_compress`）
+- **test_tools.py**：11 个工具的读写搜索编辑功能
+- **test_session.py**：会话持久化安全验证
 - **test_litellm.py**：LiteLLM 后端的基本连通性
 
 
@@ -344,17 +446,25 @@ InfraCoder/
 │   ├── modes.py             # 模式系统
 │   ├── __init__.py          # 包入口
 │   ├── __main__.py          # python -m 入口
-│   └── tools/               # 工具集合
-│       ├── base.py          # Tool 基类
-│       ├── bash.py          # Shell 执行
-│       ├── read.py          # 文件读取
-│       ├── write.py         # 文件写入
-│       ├── edit.py          # 代码编辑
-│       ├── grep.py          # 文本搜索
-│       ├── glob_tool.py     # 文件名搜索
-│       ├── agent.py         # 子 Agent
-│       ├── gpu_status.py    # GPU 状态
-│       └── vllm_status.py   # vLLM 健康
+│   ├── knowledge/           # RAG 知识库
+│   │   └── __init__.py      # KnowledgeBase：索引、搜索
+│   ├── workflows/           # 工作流模板
+│   │   ├── __init__.py      # Template、Tool、Loader
+│   │   └── defaults.py      # 4 个内置模板定义
+│   ├── tools/               # 工具集合（11 个）
+│   │   ├── base.py          # Tool 基类
+│   │   ├── bash.py          # Shell 执行
+│   │   ├── read.py          # 文件读取
+│   │   ├── write.py         # 文件写入
+│   │   ├── edit.py          # 代码编辑
+│   │   ├── grep.py          # 文本搜索
+│   │   ├── glob_tool.py     # 文件名搜索
+│   │   ├── agent.py         # 子 Agent
+│   │   ├── search_knowledge.py  # RAG 知识库搜索
+│   │   ├── workflow.py      # 工作流模板执行
+│   │   ├── gpu_status.py    # GPU 状态
+│   │   └── vllm_status.py   # vLLM 健康
+│   ├── user_config.py       # 用户个性化配置
 ├── webui.py                 # Gradio Web 界面
 ├── start_webui.sh           # Web UI 启停脚本
 ├── tests/                   # 测试

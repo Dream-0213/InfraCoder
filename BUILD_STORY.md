@@ -290,14 +290,17 @@ CLI 对开发者和习惯终端的人好用，但部门里的大部分同事想�
 1. **config.py** — 配置（最独立）
 2. **llm.py** — LLM 通信
 3. **tools/base.py** — 工具基类
-4. **tools/read.py → write.py → edit.py → grep.py → glob_tool.py → bash.py → agent.py** — 具体工具，从简单到复杂
+4. **tools/read.py → write.py → edit.py → grep.py → glob_tool.py → bash.py → agent.py → search_knowledge.py → workflow.py** — 具体工具，从简单到复杂
 5. **modes.py** — 模式系统
-6. **prompt.py** — 提示词
+6. **prompt.py** — 提示词（含个性化输出风格）
 7. **agent.py** — 核心循环（组装前面的模块）
 8. **context.py** — 上下文管理
 9. **session.py** — 会话持久化
-10. **cli.py** — 命令行界面
+10. **cli.py** — 命令行界面（含 kb、profile 命令）
 11. **webui.py** — Web 界面
-12. **tests/** — 测试
+12. **workflows/** — 工作流模板系统
+13. **knowledge/** — RAG 知识库
+14. **user_config.py** — 用户个性化配置
+15. **tests/** — 测试
 
 每个文件的逻辑都独立，搭好前一个就可以调试下一个。我从 config 开始，写完 llm.py 之后手动构造消息测试通信正常，然后逐个加工具、加循环、加压缩、加界面，每一步都可以独立验证。
