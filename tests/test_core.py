@@ -16,7 +16,7 @@ def test_public_api_exports():
     assert Agent is not None
     assert LLM is not None
     assert Config is not None
-    assert len(ALL_TOOLS) == 9
+    assert len(ALL_TOOLS) == 10
 
 
 def test_config_from_env(monkeypatch):
@@ -31,7 +31,7 @@ def test_config_defaults(monkeypatch):
     monkeypatch.delenv("INFRACODER_MAX_TOKENS", raising=False)
 
     c = Config.from_env()
-    assert c.model == "gemma-4-31b-it"
+    assert c.model == "gpt-5.5"
     assert c.max_tokens == 4096
     assert c.temperature == 0.0
 

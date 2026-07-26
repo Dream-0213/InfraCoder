@@ -8,7 +8,12 @@ from .grep import GrepTool
 from .agent import AgentTool
 from .gpu_status import GPUStatusTool
 from .vllm_status import VLLMStatusTool
+from ..workflows import WorkflowTool, load_default_templates
 
+
+# Load workflow templates and create the workflow tool
+_workflow_templates = load_default_templates()
+_workflow_tool = WorkflowTool(_workflow_templates)
 
 ALL_TOOLS = [
     GPUStatusTool(),
@@ -20,6 +25,7 @@ ALL_TOOLS = [
     GlobTool(),
     GrepTool(),
     AgentTool(),
+    _workflow_tool,
 ]
 
 

@@ -15,6 +15,7 @@ from .llm import LLM
 from .tools import ALL_TOOLS
 from .tools.base import Tool
 from .tools.agent import AgentTool
+from .workflows import WorkflowTool
 from .prompt import system_prompt
 from .context import ContextManager
 
@@ -37,7 +38,7 @@ class Agent:
 
         # wire up sub-agent capability
         for t in self.tools:
-            if isinstance(t, AgentTool):
+            if isinstance(t, (AgentTool, WorkflowTool)):
                 t._parent_agent = self
 
     def _full_messages(self) -> list[dict]:
@@ -157,7 +158,7 @@ class Agent:
         self._tool_by_name = {t.name: t for t in self.tools}
         self._system = system_prompt(self.tools)
         for t in self.tools:
-            if isinstance(t, AgentTool):
+            if isinstance(t, (AgentTool, WorkflowTool)):
                 t._parent_agent = self
 
     def reset(self):
