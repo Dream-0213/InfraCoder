@@ -22,6 +22,7 @@ import re
 import time
 from pathlib import Path
 from collections import Counter
+from ..config import _infracoder_dir
 
 # 支持的文件类型
 SUPPORTED_EXTENSIONS = {".md", ".txt", ".py", ".rst", ".yaml", ".yml", ".json", ".csv", ".html"}
@@ -35,10 +36,11 @@ class KnowledgeBase:
     """文档知识库：索引、搜索、管理索引文档。"""
 
     def __init__(self, kb_dir: str | Path | None = None):
-        self.kb_dir = Path(kb_dir or Path.home() / ".infracoder" / "knowledge")
+        self.kb_dir = Path(kb_dir or _infracoder_dir() / "knowledge")
         self.kb_dir.mkdir(parents=True, exist_ok=True)
         self._index_path = self.kb_dir / "_index.json"
-        self._chunks: list[dict] = []  # [{id, source, content, keywords}]
+        self._chunks: list[dict] = []
+        self._sources: list[str] = []
         self._load_index()
 
     # ---- 公共 API ----
@@ -92,22 +94,29 @@ class KnowledgeBase:
         return self._keyword_search(query, top_k)
 
     def rebuild(self) -> str:
-        """重建索引（重新扫描知识库目录中的所有文件）。"""
+        """重建索引（从已存储的源文件路径重新读取）。"""
+        # 收集所有不同的源文件路径
+        sources = set()
+        for chunk in self._chunks:
+            src = chunk.get("source", "")
+            if src:
+                sources.add(src)
+
         old_count = len(self._chunks)
         self._chunks = []
 
-        # 扫描知识库目录下的所有文件
         files_scanned = 0
-        for ext in SUPPORTED_EXTENSIONS:
-            for f in sorted(self.kb_dir.rglob(f"*{ext}")):
-                # 跳过索引文件和其他元数据
-                if f.name.startswith("_"):
-                    continue
-                self._add_file(f, save=False)
+        for src_path in sorted(sources):
+            p = Path(src_path)
+            if p.exists():
+                self._add_file(p, save=False)
                 files_scanned += 1
 
         self._save_index()
-        return f"Rebuilt index: {files_scanned} files scanned, {len(self._chunks)} chunks total"
+        if files_scanned > 0:
+            return f"Rebuilt index: {files_scanned} files scanned, {len(self._chunks)} chunks total"
+        else:
+            return f"No source files found. Use 'infracoder kb add <path>' to add documents."
 
     def stats(self) -> str:
         """知识库统计信息。"""
@@ -134,6 +143,7 @@ class KnowledgeBase:
                 new_count += 1
 
         if save:
+            self._sources.append(str(path))
             self._save_index()
         return f"Indexed {path.name}: {new_count} new chunks"
 
@@ -191,9 +201,19 @@ class KnowledgeBase:
     @staticmethod
     def _extract_keywords(text: str) -> list[str]:
         """提取关键词（用于关键词搜索）。"""
-        # 去除非字母字符，转小写，分词
-        words = re.findall(r"[a-zA-Z\u4e00-\u9fff]+", text.lower())
-        # 过滤常见停用词
+        # 提取英文词和中文字符
+        words = []
+        for match in re.finditer(r"[a-zA-Z]+|[\u4e00-\u9fff]+", text.lower()):
+            w = match.group()
+            if re.match(r"^[\u4e00-\u9fff]+$", w):
+                # 中文：拆成单个字和二元组
+                for i in range(len(w)):
+                    words.append(w[i])
+                for i in range(len(w) - 1):
+                    words.append(w[i:i+2])
+            else:
+                words.append(w)
+        # 停用词表
         stopwords = {
             "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
             "have", "has", "had", "do", "does", "did", "will", "would", "could",
@@ -313,12 +333,16 @@ class KnowledgeBase:
             try:
                 data = json.loads(self._index_path.read_text(encoding="utf-8"))
                 self._chunks = data.get("chunks", [])
+                self._sources = data.get("sources", [])
             except (json.JSONDecodeError, OSError):
                 self._chunks = []
+                self._sources = []
 
     def _save_index(self):
         """将索引保存到磁盘。"""
-        data = {"chunks": self._chunks, "updated_at": time.strftime("%Y-%m-%d %H:%M:%S")}
+        # 收集所有源文件路径用于重建
+        sources = list(set(c.get("source", "") for c in self._chunks if c.get("source")))
+        data = {"chunks": self._chunks, "sources": sources, "updated_at": time.strftime("%Y-%m-%d %H:%M:%S")}
         self._index_path.write_text(
             json.dumps(data, ensure_ascii=False, indent=2),
             encoding="utf-8",

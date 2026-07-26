@@ -47,6 +47,50 @@ def _kb_command(args):
     elif args.kb_cmd == "stats":
         print(kb.stats())
 
+
+def _kb_command():
+    """Handle kb subcommands by parsing sys.argv directly."""
+    import sys as _sys
+    cmd_args = _sys.argv[2:] if len(_sys.argv) > 2 else []
+    from .knowledge import KnowledgeBase
+    kb = KnowledgeBase()
+    if not cmd_args or cmd_args[0] in ("help", "-h", "--help"):
+        print("Knowledge base commands:")
+        print("  add <path>     Add a file or directory")
+        print("  list           List indexed documents")
+        print("  remove <id>    Remove a document")
+        print("  rebuild        Rebuild index from scratch")
+        print("  stats          Show statistics")
+        return
+    cmd = cmd_args[0]
+    if cmd == "add":
+        if len(cmd_args) < 2:
+            print("Usage: infracoder kb add <path>")
+            return
+        print(kb.add(cmd_args[1]))
+    elif cmd == "list":
+        docs = kb.list_documents()
+        if not docs:
+            print("Knowledge base is empty.")
+        else:
+            total = sum(d["chunks"] for d in docs)
+            print(f"Knowledge base: {total} chunks")
+            for d in docs:
+                print(f"  {d['source']}: {d['chunks']} chunks, {d['chars']} chars")
+    elif cmd == "remove":
+        if len(cmd_args) < 2:
+            print("Usage: infracoder kb remove <doc_id>")
+            return
+        print(kb.remove(cmd_args[1]))
+    elif cmd == "rebuild":
+        print(kb.rebuild())
+    elif cmd == "stats":
+        print(kb.stats())
+    else:
+        print(f"Unknown kb command: {cmd}")
+        print("Try: infracoder kb help")
+
+
 def _parse_args():
     p = argparse.ArgumentParser(
         prog="infracoder",
@@ -89,6 +133,11 @@ def _parse_args():
 
 
 def main():
+    # Handle kb subcommand before argparse
+    if len(sys.argv) >= 2 and sys.argv[1] == "kb":
+        _kb_command()
+        return
+
     args = _parse_args()
     config = Config.from_env()
 
@@ -124,7 +173,16 @@ def main():
         temperature=config.temperature,
         max_tokens=config.max_tokens,
     )
-    agent = Agent(llm=llm, max_context_tokens=config.max_context_tokens)
+    uc = init_user_config()
+    agent = Agent(llm=llm, max_context_tokens=config.max_context_tokens, user_style=uc.output_style)
+    try:
+        from .user_config import init_user_config
+        if uc.disabled_tools:
+            agent.tools = [t for t in agent.tools if t.name not in uc.disabled_tools]
+            agent._tool_by_name = {t.name: t for t in agent.tools}
+            console.print(f"[dim]User config: disabled {', '.join(uc.disabled_tools)}[/dim]")
+    except Exception:
+        pass
     if args.mode:
         agent.set_mode(args.mode)
 
@@ -331,6 +389,47 @@ def _repl(agent: Agent, config: Config, mode: str = "full"):
             continue
 
 
+        if user_input == "/profile":
+            from .user_config import init_user_config
+            uc = init_user_config()
+            console.print(f"[cyan]{uc.describe()}[/cyan]")
+            continue
+        if user_input.startswith("/kb "):
+            parts = user_input[4:].strip().split(None, 1)
+            if not parts:
+                console.print("[yellow]Usage: /kb add <path> | list | remove <id> | rebuild | stats[/yellow]")
+                continue
+            cmd = parts[0]
+            from .knowledge import KnowledgeBase
+            kb = KnowledgeBase()
+            if cmd == "add":
+                if len(parts) < 2:
+                    console.print("[yellow]Usage: /kb add <path>[/yellow]")
+                    continue
+                console.print(kb.add(parts[1]))
+            elif cmd == "list":
+                docs = kb.list_documents()
+                if not docs:
+                    console.print("[dim]Knowledge base is empty.[/dim]")
+                else:
+                    total = sum(d["chunks"] for d in docs)
+                    console.print(f"Knowledge base: [cyan]{total}[/cyan] chunks")
+                    for d in docs:
+                        console.print(f"  [cyan]{d['source']}[/cyan]: {d['chunks']} chunks, {d['chars']} chars")
+            elif cmd == "remove":
+                if len(parts) < 2:
+                    console.print("[yellow]Usage: /kb remove <doc_id>[/yellow]")
+                    continue
+                console.print(kb.remove(parts[1]))
+            elif cmd == "rebuild":
+                console.print(kb.rebuild())
+            elif cmd == "stats":
+                console.print(kb.stats())
+            else:
+                console.print(f"[yellow]Unknown kb command: {cmd}[/yellow]")
+            continue
+
+
         # an unknown /command shouldn't be sent to the model as a prompt
         if user_input.startswith("/"):
             console.print(f"[yellow]Unknown command: {user_input.split()[0]} (try /help)[/yellow]")
@@ -373,7 +472,7 @@ def _show_help():
         + "  /diff          Show files modified this session\n"
         "  /profile       Show your personal configuration\n"
         "  /kb <cmd>      Knowledge base: add, list, remove, rebuild, stats\n"
-        "  /save          Save session to disk\n"
+        "  /profile       Show your personal configuration\n"        "  /kb <cmd>      Knowledge base: add, list, remove, rebuild, stats\n"        "  /save          Save session to disk\n"
         "  /sessions      List saved sessions\n"
         "  quit           Exit InfraCoder\n"
         "\n"

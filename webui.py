@@ -66,11 +66,7 @@ def _make_agent() -> Agent:
 
 
 def _set_tool_mode(agent: Agent, mode: str) -> None:
-    if mode == "full":
-        agent.tools = list(ALL_TOOLS)
-        agent._tool_by_name = {t.name: t for t in agent.tools}
-    else:
-        agent.set_mode(mode)
+    agent.set_mode(mode)
 
 
 def _chat_impl(message: str, history: list, agent_state, mode: str):

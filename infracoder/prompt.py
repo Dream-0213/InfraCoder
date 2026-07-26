@@ -4,13 +4,12 @@ import os
 import platform
 
 
-def system_prompt(tools) -> str:
+def system_prompt(tools, style=None) -> str:
     cwd = os.getcwd()
     tool_list = "\n".join(f"- **{t.name}**: {t.description}" for t in tools)
     uname = platform.uname()
 
-    return f"""\
-You are InfraCoder, an AI coding assistant running in the user's terminal.
+    prompt = f"""You are InfraCoder, an AI coding assistant running in the user's terminal.
 You help with software engineering: writing code, fixing bugs, refactoring, explaining code, running commands, and more.
 
 # Environment
@@ -31,3 +30,14 @@ You help with software engineering: writing code, fixing bugs, refactoring, expl
 7. **Respect existing style.** Match the project's coding conventions.
 8. **Ask when unsure.** If the request is ambiguous, ask for clarification rather than guessing.
 """
+
+    if style and style != "default":
+        prompt += "\n\n# Style\n"
+        if style == "concise":
+            prompt += "Be concise. Use short sentences, minimal explanation. Show code over prose."
+        elif style == "detailed":
+            prompt += "Be thorough. Include full explanations, examples, and context."
+        elif style == "bullet":
+            prompt += "Use bullet points and structured formatting. Be complete but organized."
+
+    return prompt

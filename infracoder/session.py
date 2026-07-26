@@ -10,7 +10,13 @@ import time
 import uuid
 from pathlib import Path
 
-SESSIONS_DIR = Path.home() / ".infracoder" / "sessions"
+def _sessions_dir() -> Path:
+    """优先使用项目目录下的 .infracoder/sessions，找不到则用 home 目录。"""
+    from .config import _infracoder_dir
+    return _infracoder_dir() / "sessions"
+
+
+SESSIONS_DIR = _sessions_dir()
 _SAFE_SESSION_RE = re.compile(r"[^A-Za-z0-9._-]+")
 _MAX_SESSION_ID_LEN = 100  # keep filenames comfortably under the OS limit
 

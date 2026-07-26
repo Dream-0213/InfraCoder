@@ -25,7 +25,20 @@ def _load_dotenv():
         pass  # python-dotenv not installed, silently skip
 
 
+
+def _infracoder_dir() -> Path:
+    import infracoder
+    from pathlib import Path
+    pkg = Path(infracoder.__file__).resolve().parent
+    project = pkg.parent / ".infracoder"
+    if project.exists():
+        return project
+    return Path.home() / ".infracoder"
+
+
 @dataclass
+
+
 class Config:
     model: str = "gpt-5.5"
     api_key: str = ""

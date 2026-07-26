@@ -29,6 +29,19 @@ MODE_TOOLS: dict[str, list[str]] = {
         "gpu_status",
         "vllm_status",
     ],
+    "full": [
+        "read_file",
+        "grep",
+        "glob",
+        "edit_file",
+        "write_file",
+        "bash",
+        "agent",
+        "gpu_status",
+        "vllm_status",
+        "search_knowledge",
+        "workflow",
+    ],
 }
 
 # Short descriptions for CLI and help display
@@ -37,15 +50,16 @@ MODE_DESCRIPTIONS: dict[str, str] = {
     "coding": "Full coding (read, write, edit, bash)",
     "document": "Text document editing (read, write, edit)",
     "infra": "AI infrastructure diagnostics (GPU, vLLM)",
+    "full": "All tools (no restrictions)",
 }
 
 
 def get_tools_for_mode(mode: str | None) -> list:
     """Return tool instances for the given mode.
-
-    If mode is None, returns ALL_TOOLS (all tools available).
+    
+    If mode is None or "full", returns ALL_TOOLS (all tools available).
     """
-    if mode is None:
+    if mode is None or mode.lower() == "full":
         from .tools import ALL_TOOLS
         return list(ALL_TOOLS)
 

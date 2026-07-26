@@ -18,9 +18,20 @@ except ImportError:
 class UserConfig:
     """用户个性化配置。"""
 
+    @staticmethod
+    def _get_project_dir() -> Path:
+        """优先使用项目目录下的 .infracoder，找不到则用 home 目录。"""
+        cwd_dir = Path.cwd().resolve()
+        # 从 cwd 向上查找 .infracoder 目录
+        for p in [cwd_dir] + list(cwd_dir.parents):
+            if (p / ".infracoder").exists():
+                return p
+        # 找不到时用 home 目录
+        return Path.home()
+
     def __init__(self, username: str | None = None):
         self.username = username or self._detect_user()
-        self.config_dir = Path.home() / ".infracoder" / "users"
+        self.config_dir = self._get_project_dir() / ".infracoder" / "users"
         self.config_dir.mkdir(parents=True, exist_ok=True)
         self.config_path = self.config_dir / f"{self.username}.yaml"
 

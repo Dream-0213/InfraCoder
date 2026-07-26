@@ -27,6 +27,7 @@ class Agent:
         tools: list[Tool] | None = None,
         max_context_tokens: int = 128_000,
         max_rounds: int = 50,
+        user_style=None,
     ):
         self.llm = llm
         self.tools = tools if tools is not None else ALL_TOOLS
@@ -34,7 +35,8 @@ class Agent:
         self.messages: list[dict] = []
         self.context = ContextManager(max_tokens=max_context_tokens)
         self.max_rounds = max_rounds
-        self._system = system_prompt(self.tools)
+        self._style = user_style
+        self._system = system_prompt(self.tools, style=user_style)
 
         # wire up sub-agent capability
         for t in self.tools:
