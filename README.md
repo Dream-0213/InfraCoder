@@ -177,6 +177,8 @@ return "(reached maximum tool-call rounds)"
 - **配置检测**：读取当前环境变量中的 API 配置
 
 该工具会自动检测 `OPENAI_BASE_URL` 和 `INFRACODER_BASE_URL` 环境变量中配置的 vLLM 地址。
+![功能演示](assets/demo_en.png)
+GPU 状态与 vLLM 健康检查⼯具演⽰
 
 ## RAG 知识库
 
